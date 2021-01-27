@@ -1,0 +1,119 @@
+version: "3.7"
+
+services:
+  watchtower:
+    image: v2tec/watchtower
+    container_name: watchtower
+    hostname: watchtower
+    restart: always
+    command: --schedule "0 0 4 * * *" --cleanup
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  organizr:
+    image: organizr/organizr
+    container_name: organizr
+    hostname: organizr
+    restart: always
+    volumes:
+      - $USERDIR/organizr/config:/config
+      - $USERDIR/shared:/shared
+    ports:
+      - "9000:80"
+    environment:
+      - fpm=true
+      - branch=v2-master
+      - PUID=$PUID
+      - PGID=$PGID
+      - TZ=$TZ
+
+  portainer:
+    image: portainer/portainer:latest
+    container_name: portainer
+    hostname: portainer
+    restart: always
+    command: -H unix:///var/run/docker.sock
+    ports:
+      - "9001:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - $USERDIR/portainer/data:/data
+      - $USERDIR/shared:/shared
+    environment:
+    environment:
+      - TZ=$TZ
+
+  phpmyadmin:
+    hostname: phpmyadmin
+    container_name: phpmyadmin
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    depends_on:
+      - mariadb
+    ports:
+      - "8081:80"
+    networks:
+      - devnetwork
+    environment:
+      - PMA_HOST=mariadb
+      - MYSQL_ROOT_PASSWORD=$PASSWORD
+
+############## DATABASES #####################
+
+  mariadb:
+    user: root
+    image: "linuxserver/mariadb"
+    container_name: "mariadb"
+    hostname: mariadb
+    volumes:
+        - $USERDIR/mariadb/config:/config
+        - $USERDIR/mariadb/db:/var/lib/mysql
+    ports:
+      - target: 3306
+        published: 3306
+        protocol: tcp
+        mode: host
+    networks:
+      - devnetwork
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=$PASSWORD
+      - PUID=$PUID
+      - PGID=$PGID
+      - TZ=$TZ
+
+  mongodb:
+    image: mongo:latest
+    container_name: "mongodb"
+    hostname: dev-mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongo
+      MONGO_INITDB_ROOT_PASSWORD: $PASSWORD
+    ports:
+      - "27018:27017"
+    networks:
+      - devnetwork
+    volumes:
+      - $USERDIR/mongodb/db:/data/db
+      - $USERDIR/mongodb/config:/configdb
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:latest-ubuntu
+    container_name: "sqlserver"
+    hostname: dev-sqlserver
+    restart: always
+    environment:
+      - MSSQL_SA_PASSWORD=$PASSWORD
+      - ACCEPT_EULA=Y
+      - MSSQL_PID=Standard
+      - MSSQL_AGENT_ENABLED=True
+    ports:
+      - 1433:1433
+    networks:
+      - devnetwork
+    volumes:
+      - $USERDIR/sqlserver/db:/var/opt/mssql
+
+networks:
+  devnetwork:

@@ -1,0 +1,142 @@
+version: "3.7"
+
+services:
+  watchtower:
+    image: v2tec/watchtower
+    container_name: watchtower
+    hostname: watchtower
+    restart: always
+    command: --schedule "0 0 4 * * *" --cleanup
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  organizr:
+    image: organizr/organizr
+    container_name: organizr
+    hostname: organizr
+    restart: always
+    volumes:
+      - $USERDIR/organizr/config:/config
+      - $USERDIR/shared:/shared
+    ports:
+      - "9000:80"
+    environment:
+      - fpm=true
+      - branch=v2-master
+      - PUID=$PUID
+      - PGID=$PGID
+      - TZ=$TZ
+
+  portainer:
+    image: portainer/portainer:latest
+    container_name: portainer
+    hostname: portainer
+    restart: always
+    command: -H unix:///var/run/docker.sock
+    ports:
+      - "9001:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - $USERDIR/portainer/data:/data
+      - $USERDIR/shared:/shared
+    environment:
+    environment:
+      - TZ=$TZ
+
+################# Build Server #######################
+
+  gitlab-ce:
+    image: gitlab/gitlab-ce:latest
+    container_name: "gitlab"
+    hostname: gitlab
+    restart: always
+    networks:
+      - buildnetwork
+    environment:
+      GITLAB_OMNIBUS_CONFIG:
+        # external_url 'https://gitlab.example.com'
+        # Add any other gitlab.rb configuration here, each on its own line
+                #    - GITLAB_SECRETS_DB_KEY_BASE=long-and-random-alphanumeric-string
+                #    - GITLAB_HOST=your-host-ip-here
+                #    - GITLAB_PORT=10080
+                #    - GITLAB_SSH_PORT=10022
+    ports:
+      - "9010:80"
+      - "9011:443"
+      - "10022:22"
+    volumes:
+      - $USERDIR/gitlab/config:/etc/gitlab
+      - $USERDIR/gitlab/logs:/var/log/gitlab
+      - $USERDIR/gitlab/data:/var/opt/gitlab
+
+  jenkins:
+    image: jenkins/jenkins
+    container_name: "jenkins"
+    hostname: jenkins
+    restart: always
+    ports:	 
+      - "18080:8080"
+    networks:
+      - buildnetwork
+    volumes:
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/group:/etc/group:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - jenkins-data:/var/lib/jenkins/
+      - /var/jenkins_home:/var/jenkins_home
+    depends_on:
+      - nexus3
+      - sonar
+    environment:
+      - NEXUS_PORT=8081
+      - SONAR_PORT=9000
+      - SONAR_DB_PORT=5432
+
+  sonardb:
+    container_name: "sonardb"
+    hostname: sonardb
+    restart: always
+    image: postgres:9.6
+    ports:
+      - "5432:5432"
+    environment:
+     - POSTGRES_USER=sonar
+     - POSTGRES_PASSWORD=sonar
+
+  sonar:
+    image: sonarqube:latest
+    container_name: "sonar"
+    hostname: sonar
+    restart: always
+    ports:
+     - "19000:9000"
+     - "19092:9092"
+    volumes:
+     - $USERDIR/sonarqube/logs:/opt/sonarqube/logs
+    networks:
+      - buildnetwork
+    depends_on:
+      - sonardb
+    environment:
+     - SONARQUBE_JDBC_URL=jdbc:postgresql://sonardb:5432/sonar
+     - SONARQUBE_JDBC_USERNAME=sonar
+     - SONARQUBE_JDBC_PASSWORD=sonar
+
+  nexus3:	
+    image: sonatype/nexus3
+    container_name: "nexus"
+    hostname: nexus
+    restart: always
+    ports:
+      - "18081:8081"
+    networks:
+      - buildnetwork
+    volumes:
+      - $USERDIR/nexus/data:/nexus-data
+
+networks:
+  buildnetwork:
+volumes:
+  nexus-data:
+  jenkins-data:  
