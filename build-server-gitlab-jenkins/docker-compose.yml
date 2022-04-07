@@ -45,6 +45,8 @@ services:
 
 ################# Build Server #######################
 
+# Logging into gitlab as root
+# https://stackoverflow.com/questions/55747402/docker-gitlab-change-forgotten-root-password
   gitlab-ce:
     image: gitlab/gitlab-ce:latest
     container_name: "gitlab"
